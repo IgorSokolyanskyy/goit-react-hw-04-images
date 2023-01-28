@@ -1,4 +1,4 @@
-import React, { Component } from 'react';
+import { useState, useEffect } from 'react';
 import Button from '../Button';
 import ImageGallery from '../ImageGallery';
 import fetchImages from '../Api/images-Api';
@@ -7,102 +7,105 @@ import Notiflix from 'notiflix';
 import Loader from '../Loader';
 import './App.css';
 
-export class App extends Component {
-  state = {
-    inputData: '',
-    items: [],
-    status: 'idle',
-    totalHits: 0,
-    page: 1,
-    scroll: 0,
+const Status = {
+  IDLE: 'idle',
+  PENDING: 'pending',
+  RESOLTED: 'resolted',
+  REJECTED: 'rejected',
+};
+
+export default function App() {
+  const [inputData, setInputData] = useState('');
+  const [items, setItems] = useState([]);
+  const [totalHits, setTotalHits] = useState(0);
+  const [page, setPage] = useState(1);
+  const [scroll, setScroll] = useState(0);
+  const [status, setStatus] = useState(Status.IDLE);
+
+  useEffect(() => {
+    if (!inputData) {
+      return;
+    }
+
+    setStatus(Status.PENDING);
+
+    fetchImages(inputData, page)
+      .then(data => {
+        if (!data.hits.length) {
+          setStatus(Status.IDLE);
+          Notiflix.Notify.failure(
+            'Sorry, there are no images matching your search query. Please try again.'
+          );
+        } else {
+          // setItems(items);
+          setItems(items => [...items, ...data.hits]);
+          setTotalHits(data.totalHits);
+          setScroll(document.documentElement.scrollHeight);
+          setStatus(Status.RESOLTED);
+        }
+      })
+      .catch(error => {
+        setStatus(Status.REJECTED);
+      });
+  }, [inputData, page]);
+
+  useEffect(() => {
+    if (!scroll || page === 1) {
+      return;
+    }
+    window.scrollTo({
+      top: scroll - 240,
+      behavior: 'smooth',
+    });
+  }, [scroll, page]);
+
+  const handleSubmit = inputData => {
+    setInputData(inputData);
+    setItems([]);
+    setPage(1);
   };
 
-  componentDidUpdate(_, prevState) {
-    const { page, inputData, scroll } = this.state;
+  const getLoadMore = () => {
+    setPage(page => page + 1);
+  };
 
-    if (prevState.page !== page || prevState.inputData !== inputData) {
-      this.setState({ status: 'pending' });
-
-      fetchImages(inputData, page)
-        .then(data => {
-          if (!data.hits.length) {
-            this.setState({ status: 'idle' });
-            Notiflix.Notify.failure(
-              'Sorry, there are no images matching your search query. Please try again.'
-            );
-          } else {
-            this.setState(prevState => ({
-              items: [...prevState.items, ...data.hits],
-              totalHits: data.totalHits,
-              status: 'resolved',
-              scroll: document.documentElement.scrollHeight,
-            }));
-          }
-        })
-        .catch(error => {
-          this.setState({ status: 'rejected' });
-        });
-    }
-
-    if (prevState.scroll !== scroll && page > 1) {
-      window.scrollTo({
-        top: this.state.scroll - 240,
-        behavior: 'smooth',
-      });
-    }
+  if (status === Status.IDLE) {
+    return (
+      <div className="App">
+        <Searchbar onSubmit={handleSubmit} />
+      </div>
+    );
   }
 
-  handleSubmit = inputData => {
-    this.setState({ inputData, page: 1, items: [] });
-  };
+  if (status === Status.PENDING) {
+    return (
+      <div className="App">
+        <Searchbar onSubmit={handleSubmit} />
+        <ImageGallery items={items} />
+        <Loader />
+        {totalHits > 12 && <Button onClick={getLoadMore} />}
+      </div>
+    );
+  }
 
-  getLoadMore = () => {
-    this.setState(prevState => ({
-      page: prevState.page + 1,
-    }));
-  };
+  if (status === Status.RESOLTED) {
+    return (
+      <div className="App">
+        <Searchbar onSubmit={handleSubmit} />
+        <ImageGallery items={items} />
+        {totalHits > 12 && totalHits > items.length && (
+          <Button onClick={getLoadMore} />
+        )}
+      </div>
+    );
+  }
 
-  render() {
-    const { totalHits, status, items } = this.state;
-
-    if (status === 'idle') {
-      return (
-        <div className="App">
-          <Searchbar onSubmit={this.handleSubmit} />
-        </div>
-      );
-    }
-
-    if (status === 'pending') {
-      return (
-        <div className="App">
-          <Searchbar onSubmit={this.handleSubmit} />
-          <ImageGallery items={items} />
-          <Loader />
-          {totalHits > 12 && <Button onClick={this.getLoadMore} />}
-        </div>
-      );
-    }
-
-    if (status === 'rejected') {
-      return (
-        <div className="App">
-          <Searchbar onSubmit={this.handleSubmit} />
-          <p>Something wrong, try later</p>
-        </div>
-      );
-    }
-
-    if (status === 'resolved') {
-      return (
-        <div className="App">
-          <Searchbar onSubmit={this.handleSubmit} />
-          <ImageGallery items={items} />
-          {totalHits > 12 && totalHits > items.length && (
-            <Button onClick={this.getLoadMore} />
-          )}
-        </div>
-      );
-    }
+  if (status === Status.REJECTED) {
+    return (
+      <div className="App">
+        <Searchbar onSubmit={handleSubmit} />
+        <p>Something wrong, try later</p>
+      </div>
+    );
   }
 }
