@@ -37,7 +37,6 @@ export default function App() {
             'Sorry, there are no images matching your search query. Please try again.'
           );
         } else {
-          // setItems(items);
           setItems(items => [...items, ...data.hits]);
           setTotalHits(data.totalHits);
           setScroll(document.documentElement.scrollHeight);
